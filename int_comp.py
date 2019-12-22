@@ -8,6 +8,7 @@ BUFFERED = "buffered"
 # Modes
 POS = 0
 IMM = 1
+REL = 2
 
 # Operators
 ADD = 1
@@ -18,12 +19,12 @@ JIT = 5
 JIF = 6
 SLT = 7
 EQU = 8
+URB = 9
 HALT = 99
 
-BINARITH = [ADD, MUL]
-IO = [RIN, OUT]
-FLOW = [JIT, JIF]
-COMPARISON = [SLT, EQU]
+ONE_ARG = [RIN, OUT, URB]
+TWO_ARG = [JIT, JIF]
+TRE_ARG = [ADD, MUL, SLT, EQU]
 
 
 class OpError(Exception):
@@ -38,12 +39,13 @@ class Computer(Thread):
     def __init__(self, code, io_type=HUMAN):
         assert io_type in [HUMAN, BUFFERED]
         self._io_type = io_type
-        self.prov_code = code.copy()
+        self.prov_code = {pos: value for pos, value in enumerate(code)}
         self.reset()
 
     def reset(self):
         self.code = self.prov_code.copy()
         self.oppos = 0
+        self.rel_base = 0
         if self._io_type == BUFFERED:
             self.input_queue = Queue()
             self.output_queue = Queue()
@@ -56,8 +58,31 @@ class Computer(Thread):
             if operator == HALT:
                 break
 
-            elif operator in BINARITH or operator in COMPARISON:
-                args, resloc = self._get_args(mode_code, 2)
+            elif operator in ONE_ARG:
+                if operator == RIN:
+                    _, resloc = self._get_args(mode_code, 0, True)
+                    self.code[resloc] = self._get_input()
+                elif operator == OUT:
+                    args = self._get_args(mode_code, 1, False)
+                    self._set_output(args[0])
+                elif operator == URB:
+                    args = self._get_args(mode_code, 1, False)
+                    self.rel_base += args[0]
+
+                self.oppos += 2
+
+            elif operator in TWO_ARG:
+                args = self._get_args(mode_code, 2, False)
+
+                if (operator == JIT and args[0] != 0) or (
+                    operator == JIF and args[0] == 0
+                ):
+                    self.oppos = args[1]
+                else:
+                    self.oppos += 3
+
+            elif operator in TRE_ARG:
+                args, resloc = self._get_args(mode_code, 2, True)
 
                 if operator == ADD:
                     self.code[resloc] = args[0] + args[1]
@@ -70,26 +95,6 @@ class Computer(Thread):
 
                 self.oppos += 4
 
-            elif operator in IO:
-                if operator == RIN:
-                    _, resloc = self._get_args(mode_code, 0)
-                    self.code[resloc] = self._get_input()
-                elif operator == OUT:
-                    args, _ = self._get_args(mode_code, 1)
-                    self._set_output(args[0])
-
-                self.oppos += 2
-
-            elif operator in FLOW:
-                args, _ = self._get_args(mode_code, 2)
-
-                if (operator == JIT and args[0] != 0) or (
-                    operator == JIF and args[0] == 0
-                ):
-                    self.oppos = args[1]
-                else:
-                    self.oppos += 3
-
             else:
                 raise OpError([mode_code, operator, self.code, self.oppos])
 
@@ -101,7 +106,7 @@ class Computer(Thread):
     def get_output(self, timeout=5):
         return self.output_queue.get(timeout=timeout)
 
-    def _get_args(self, mode_code, arg_count):
+    def _get_args(self, mode_code, arg_count, need_resloc):
         arg_pos = self.oppos
         args = list()
         for _ in range(arg_count):
@@ -111,10 +116,22 @@ class Computer(Thread):
                 args.append(self.code[self.code[arg_pos]])
             elif mode == IMM:
                 args.append(self.code[arg_pos])
+            elif mode == REL:
+                args.append(self.code[self.code[arg_pos] + self.rel_base])
             else:
                 raise ModeError()
 
-        resloc = self.code[self.oppos + arg_count + 1]
+        if not need_resloc:
+            return args
+
+        arg_pos += 1
+
+        if mode_code == POS:
+            resloc = self.code[arg_pos]
+        elif mode_code == REL:
+            resloc = self.code[arg_pos] + self.rel_base
+        else:
+            raise ModeError()
 
         return args, resloc
 
