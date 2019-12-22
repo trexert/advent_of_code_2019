@@ -24,22 +24,28 @@ IO = [RIN, OUT]
 FLOW = [JIT, JIF]
 COMPARISON = [SLT, EQU]
 
+
 class OpError(Exception):
     pass
+
 
 class ModeError(Exception):
     pass
 
 
-class computer(object):
-    def __init__(self, code, _io_type):
-        assert _io_type in [HUMAN, BUFFERED]
-        self._io_type = _io_type
+class Computer(object):
+    def __init__(self, code, io_type=HUMAN):
+        assert io_type in [HUMAN, BUFFERED]
+        self._io_type = io_type
+        self.prov_code = code.copy()
+        self.reset()
+
+    def reset(self):
+        self.code = self.prov_code.copy()
+        self.oppos = 0
         if self._io_type == BUFFERED:
             self.input_queue = Queue()
             self.output_queue = Queue()
-        self.prov_code = code.copy()
-        self.reset()
 
     def run(self):
         while True:
@@ -65,7 +71,7 @@ class computer(object):
             elif operator in IO:
                 if operator == RIN:
                     _, resloc = self._get_args(mode_code, 0)
-                    self.code[resloc] = _get_input()
+                    self.code[resloc] = self._get_input()
                 elif operator == OUT:
                     args, _ = self._get_args(mode_code, 1)
                     self._set_output(args[0])
@@ -75,20 +81,23 @@ class computer(object):
             elif operator in FLOW:
                 args, _ = self._get_args(mode_code, 2)
 
-                if (operator == JIT and args[0] != 0) or (operator == JIF and args[0] == 0):
+                if (operator == JIT and args[0] != 0) or (
+                    operator == JIF and args[0] == 0
+                ):
                     self.oppos = args[1]
                 else:
                     self.oppos += 3
-
 
             else:
                 raise OpError([mode_code, operator, self.code, self.oppos])
 
         return self.code[0]
 
-    def reset(self):
-        self.code = self.prov_code.copy()
-        self.oppos = 0
+    def put_input(self, value):
+        self.input_queue.put(value)
+
+    def get_output(self, timeout=5):
+        return self.output_queue.get(timeout=timeout)
 
     def _get_args(self, mode_code, arg_count):
         arg_pos = self.oppos
@@ -115,16 +124,16 @@ class computer(object):
         if self._io_type == HUMAN:
             result = int(input("Provide input to the int computer: "))
         else:
-            result = input_queue.get(timeout=5)
+            result = self.input_queue.get(timeout=5)
 
         return result
 
     def _set_output(self, value):
         if self._io_type == HUMAN:
-            print(f"int computer output: {args[0]}")
+            print(f"int computer output: {value}")
         else:
             self.output_queue.put(value)
 
 
 def int_comp(prov_code):
-    return computer(prov_code).run()
+    return Computer(prov_code).run()
