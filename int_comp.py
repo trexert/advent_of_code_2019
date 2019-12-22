@@ -1,4 +1,5 @@
 from queue import Queue
+from threading import Thread
 
 # IO Types
 HUMAN = "human"
@@ -33,7 +34,7 @@ class ModeError(Exception):
     pass
 
 
-class Computer(object):
+class Computer(Thread):
     def __init__(self, code, io_type=HUMAN):
         assert io_type in [HUMAN, BUFFERED]
         self._io_type = io_type
@@ -46,6 +47,7 @@ class Computer(object):
         if self._io_type == BUFFERED:
             self.input_queue = Queue()
             self.output_queue = Queue()
+        Thread.__init__(self)
 
     def run(self):
         while True:
@@ -121,18 +123,18 @@ class Computer(object):
         return divmod(opcode, 100)
 
     def _get_input(self):
-        if self._io_type == HUMAN:
-            result = int(input("Provide input to the int computer: "))
-        else:
+        if self._io_type == BUFFERED:
             result = self.input_queue.get(timeout=5)
+        else:
+            result = int(input("Provide input to the int computer: "))
 
         return result
 
     def _set_output(self, value):
-        if self._io_type == HUMAN:
-            print(f"int computer output: {value}")
-        else:
+        if self._io_type == BUFFERED:
             self.output_queue.put(value)
+        else:
+            print(f"int computer output: {value}")
 
 
 def int_comp(prov_code):

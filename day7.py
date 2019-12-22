@@ -13,14 +13,16 @@ class AmpCircuit(object):
         self.reset_amps()
 
     def reset_amps(self):
-        for i, amp in enumerate(self.amps):
+        for amp in self.amps:
             amp.reset()
-            if i != 0:
-                amp.input_queue = self.amps[i - 1].output_queue
+        for i, amp in enumerate(self.amps):
+            amp.input_queue = self.amps[i - 1].output_queue
 
     def run(self):
         for amp in self.amps:
-            amp.run()
+            amp.start()
+        for amp in self.amps:
+            amp.join()
 
     def set_phases(self, phase_list):
         assert len(phase_list) == 5
@@ -34,12 +36,21 @@ class AmpCircuit(object):
         return self.amps[4].get_output()
 
 
-def solve():
+def setup_circuit():
     input_file = open(INPUT_FILE_NAME)
     code = list(map(int, input_file.readline().strip().split(",")))
-    circuit = AmpCircuit(code)
+    return AmpCircuit(code)
+
+
+def solve(part):
+    circuit = setup_circuit()
     current_max = 0
-    for phase_list in permutations([0, 1, 2, 3, 4]):
+    if part == 1:
+        phase_lists = permutations([0, 1, 2, 3, 4])
+    else:
+        phase_lists = permutations([5, 6, 7, 8, 9])
+
+    for phase_list in phase_lists:
         circuit.reset_amps()
         circuit.set_phases(phase_list)
         circuit.set_input(0)
@@ -50,7 +61,8 @@ def solve():
 
 
 def main():
-    print(f"problem1: {solve()}")
+    print(f"problem1: {solve(1)}")
+    print(f"problem2: {solve(2)}")
 
 
 if __name__ == "__main__":
