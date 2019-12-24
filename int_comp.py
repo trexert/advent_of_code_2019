@@ -113,11 +113,19 @@ class Computer(Thread):
             arg_pos += 1
             mode_code, mode = divmod(mode_code, 10)
             if mode == POS:
-                args.append(self.code[self.code[arg_pos]])
+                try:
+                    arg = self.code[self.code[arg_pos]]
+                except KeyError:
+                    arg = 0
+                args.append(arg)
             elif mode == IMM:
                 args.append(self.code[arg_pos])
             elif mode == REL:
-                args.append(self.code[self.code[arg_pos] + self.rel_base])
+                try:
+                    arg = self.code[self.code[arg_pos] + self.rel_base]
+                except KeyError:
+                    arg = 0
+                args.append(arg)
             else:
                 raise ModeError()
 
